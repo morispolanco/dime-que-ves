@@ -1,0 +1,7 @@
+{
+  "name": "Gemini Vision Interpreter",
+  "description": "An application that uses Google Gemini to take photos and interpret them with voice in Spanish.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
