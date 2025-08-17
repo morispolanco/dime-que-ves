@@ -22,10 +22,10 @@ export const SpeakerWaveIcon = (): React.ReactNode => (
 
 export const ArrowPathIcon = (): React.ReactNode => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5M4 4l16 16" />
-     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.5 14.5A7.5 7.5 0 0012 7a7.47 7.47 0 00-1.5.17M4.5 9.5A7.5 7.5 0 0012 17a7.47 7.47 0 001.5-.17" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0011.667 0l3.181-3.183m-4.991-2.691V5.25a2.25 2.25 0 00-2.25-2.25h-6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25h6.75a2.25 2.25 0 002.25-2.25v-1.125" />
   </svg>
 );
+
 
 export const PlayIcon = (): React.ReactNode => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

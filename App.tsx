@@ -34,7 +34,8 @@ export default function App(): React.ReactNode {
         });
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          await videoRef.current.play();
+          // The `autoPlay` prop on the <video> element will handle starting the stream.
+          // The explicit call to play() is removed as it can cause issues on some browsers.
           setAppState('camera_on');
         }
       } else {
