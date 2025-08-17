@@ -139,7 +139,7 @@ export default function App(): React.ReactNode {
       case 'capturing':
         return (
           <div className="w-full max-w-2xl relative">
-            <video ref={videoRef} className="w-full h-auto rounded-lg shadow-2xl" playsInline />
+            <video ref={videoRef} className="w-full h-auto rounded-lg shadow-2xl" playsInline muted autoPlay />
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
               <button
                 onClick={handleCapture}
