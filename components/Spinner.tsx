@@ -1,14 +1,10 @@
 
 import React from 'react';
 
-export const Spinner = (): React.ReactNode => {
+const Spinner = () => {
   return (
-    <div
-      className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-400"
-      role="status"
-      aria-live="polite"
-    >
-      <span className="sr-only">Loading...</span>
-    </div>
+    <div className="border-4 border-gray-600 border-t-cyan-400 rounded-full w-12 h-12 animate-spin"></div>
   );
 };
+
+export default Spinner;

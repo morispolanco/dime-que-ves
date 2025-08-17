@@ -1,0 +1,9 @@
+
+export enum AppState {
+  IDLE,
+  CAMERA_ACTIVE,
+  CAPTURED,
+  DESCRIBING,
+  DESCRIBED,
+  ERROR,
+}

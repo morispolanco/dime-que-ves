@@ -1,90 +1,51 @@
-
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { interpretImage } from './services/geminiService';
-import { Spinner } from './components/Spinner';
-import { CameraIcon, SparklesIcon, SpeakerWaveIcon, ArrowPathIcon, PlayIcon } from './components/icons';
+import { AppState } from './types';
+import { describeImage } from './services/geminiService';
+import { CameraIcon, CaptureIcon, RetryIcon, DescribeIcon } from './components/icons';
+import Spinner from './components/Spinner';
 
-type AppState = 'idle' | 'camera_on' | 'capturing' | 'loading' | 'result' | 'error';
-
-export default function App(): React.ReactNode {
-  const [appState, setAppState] = useState<AppState>('idle');
+const App: React.FC = () => {
+  const [appState, setAppState] = useState<AppState>(AppState.IDLE);
   const [imageSrc, setImageSrc] = useState<string | null>(null);
-  const [interpretation, setInterpretation] = useState<string>('');
+  const [description, setDescription] = useState<string>('');
   const [error, setError] = useState<string>('');
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [stream, setStream] = useState<MediaStream | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const stopCamera = useCallback(() => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
-      videoRef.current.srcObject = null;
-    }
-  }, []);
-
   const startCamera = useCallback(async () => {
-    stopCamera();
-    setError('');
     try {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { facingMode: 'environment' } 
-        });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          // The `autoPlay` prop on the <video> element will handle starting the stream.
-          // The explicit call to play() is removed as it can cause issues on some browsers.
-          setAppState('camera_on');
-        }
-      } else {
-        throw new Error('Camera not supported by this browser.');
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
       }
+      const newStream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        } 
+      });
+      setStream(newStream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = newStream;
+      }
+      setAppState(AppState.CAMERA_ACTIVE);
     } catch (err) {
       console.error("Error accessing camera:", err);
-      let errorMessage = 'Could not access the camera.';
-      if (err instanceof Error && err.name === 'NotAllowedError') {
-        errorMessage = 'Camera permission denied. Please allow camera access in your browser settings.';
-      }
-      setError(errorMessage);
-      setAppState('error');
+      setError("No se pudo acceder a la cámara. Asegúrate de haber otorgado los permisos necesarios.");
+      setAppState(AppState.ERROR);
     }
-  }, [stopCamera]);
+  }, [stream]);
 
-  const speak = useCallback((text: string) => {
-    if (!text || typeof window === 'undefined' || !window.speechSynthesis) return;
-
-    window.speechSynthesis.cancel();
-    
-    const utterance = new SpeechSynthesisUtterance(text);
-    const voices = window.speechSynthesis.getVoices();
-    const spanishVoice = voices.find(voice => voice.lang.startsWith('es-')) || voices.find(voice => voice.lang.startsWith('es'));
-    
-    if (spanishVoice) {
-      utterance.voice = spanishVoice;
+  const stopCamera = useCallback(() => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
     }
-    utterance.lang = 'es-ES';
-    utterance.rate = 1;
+  }, [stream]);
 
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-    
-    window.speechSynthesis.speak(utterance);
-  }, []);
-
-  // Preload voices
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.onvoiceschanged = () => {
-        window.speechSynthesis.getVoices();
-      };
-    }
-  }, []);
-
-  const handleCapture = useCallback(async () => {
-    setAppState('capturing');
+  const captureImage = useCallback(() => {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -95,128 +56,152 @@ export default function App(): React.ReactNode {
         context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
         const dataUrl = canvas.toDataURL('image/jpeg');
         setImageSrc(dataUrl);
+        setAppState(AppState.CAPTURED);
         stopCamera();
-        setAppState('loading');
-
-        try {
-          const interpretationText = await interpretImage(dataUrl);
-          setInterpretation(interpretationText);
-          speak(interpretationText);
-          setAppState('result');
-        } catch (err) {
-          console.error(err);
-          setError('Failed to interpret the image. Please try again.');
-          setAppState('error');
-        }
       }
     }
-  }, [stopCamera, speak]);
-
-  const handleReset = () => {
-    stopCamera();
-    setImageSrc(null);
-    setInterpretation('');
+  }, [videoRef, canvasRef, stopCamera]);
+  
+  const handleDescribe = async () => {
+    if (!imageSrc) return;
+    setAppState(AppState.DESCRIBING);
+    setDescription('');
     setError('');
-    setAppState('idle');
+    const result = await describeImage(imageSrc);
+    if (result.startsWith('Error')) {
+      setError(result);
+      setAppState(AppState.ERROR);
+    } else {
+      setDescription(result);
+      setAppState(AppState.DESCRIBED);
+    }
   };
+
+  const reset = () => {
+    setImageSrc(null);
+    setDescription('');
+    setError('');
+    setAppState(AppState.IDLE);
+  };
+  
+  const retake = () => {
+    setImageSrc(null);
+    setDescription('');
+    setError('');
+    startCamera();
+  }
+
+  useEffect(() => {
+    // Cleanup on unmount
+    return () => {
+      stopCamera();
+    };
+  }, [stopCamera]);
+
 
   const renderContent = () => {
     switch (appState) {
-      case 'idle':
+      case AppState.IDLE:
         return (
           <div className="text-center">
-            <h2 className="text-2xl font-semibold text-gray-200 mb-4">Gemini Vision Interpreter</h2>
-            <p className="text-gray-400 mb-8">Get a spoken description of your surroundings in Spanish.</p>
+            <h2 className="text-3xl font-bold mb-4 text-cyan-300">Bienvenido a Visión AI</h2>
+            <p className="mb-8 max-w-lg mx-auto text-gray-300">Activa tu cámara para tomar una foto y deja que la inteligencia artificial te describa lo que ve.</p>
             <button
               onClick={startCamera}
-              className="bg-cyan-500 text-white font-bold py-3 px-6 rounded-full inline-flex items-center gap-2 hover:bg-cyan-600 transition-colors duration-300 transform hover:scale-105 shadow-lg"
+              className="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105 flex items-center justify-center mx-auto"
             >
-              <CameraIcon />
-              Start Camera
+              <CameraIcon className="w-6 h-6 mr-2" />
+              Activar Cámara
             </button>
           </div>
         );
-      case 'camera_on':
-      case 'capturing':
+
+      case AppState.CAMERA_ACTIVE:
         return (
-          <div className="w-full max-w-2xl relative">
-            <video ref={videoRef} className="w-full h-auto rounded-lg shadow-2xl" playsInline muted autoPlay />
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
-              <button
-                onClick={handleCapture}
-                disabled={appState === 'capturing'}
-                className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-lg transition transform hover:scale-110 active:scale-95 disabled:opacity-50"
-                aria-label="Capture photo"
-              >
-                <div className="w-18 h-18 bg-white rounded-full border-4 border-gray-900"></div>
-              </button>
+          <div className="w-full max-w-4xl mx-auto flex flex-col items-center">
+            <div className="w-full bg-black rounded-lg overflow-hidden shadow-2xl border-2 border-gray-700 mb-6">
+              <video ref={videoRef} autoPlay playsInline className="w-full h-auto" />
+              <canvas ref={canvasRef} className="hidden"></canvas>
             </div>
+            <button
+              onClick={captureImage}
+              className="bg-red-600 hover:bg-red-700 text-white font-bold p-4 rounded-full shadow-lg transition-transform transform hover:scale-110 focus:outline-none focus:ring-4 focus:ring-red-400"
+              aria-label="Capturar Foto"
+            >
+              <CaptureIcon className="w-10 h-10" />
+            </button>
           </div>
         );
-      case 'loading':
-      case 'result':
-      case 'error':
+
+      case AppState.CAPTURED:
+      case AppState.DESCRIBING:
+      case AppState.DESCRIBED:
+      case AppState.ERROR:
         return (
-          <div className="w-full max-w-2xl text-center">
-            <div className="relative w-full h-auto rounded-lg shadow-2xl overflow-hidden aspect-video bg-gray-800 flex items-center justify-center">
-              {imageSrc && <img src={imageSrc} alt="Captured" className="w-full h-full object-contain" />}
-              {appState === 'loading' && (
-                <div className="absolute inset-0 bg-black bg-opacity-60 flex flex-col items-center justify-center text-white">
-                  <Spinner />
-                  <p className="mt-4 text-lg font-medium animate-pulse">Gemini está analizando...</p>
-                </div>
-              )}
-            </div>
+          <div className="w-full max-w-4xl mx-auto flex flex-col items-center">
+            {imageSrc && <img src={imageSrc} alt="Captura" className="rounded-lg shadow-2xl border-2 border-gray-700 mb-6 w-full" />}
             
-            {appState === 'result' && interpretation && (
-              <div className="mt-6 p-6 bg-gray-800 rounded-lg text-left shadow-inner">
-                <h3 className="text-lg font-semibold text-cyan-400 mb-2 flex items-center gap-2"><SparklesIcon /> Interpretación de Gemini</h3>
-                <p className="text-gray-300 leading-relaxed">{interpretation}</p>
+            {appState === AppState.DESCRIBING && (
+              <div className="flex flex-col items-center justify-center p-8 bg-gray-800 rounded-lg w-full">
+                <Spinner />
+                <p className="mt-4 text-cyan-300 animate-pulse">Analizando imagen...</p>
               </div>
             )}
 
-            {appState === 'error' && error && (
-              <div className="mt-6 p-4 bg-red-900 border border-red-700 rounded-lg text-red-200">
-                <p className="font-bold">Error</p>
-                <p>{error}</p>
+            {appState === AppState.DESCRIBED && (
+              <div className="p-6 bg-gray-800 rounded-lg w-full shadow-inner">
+                <h3 className="text-xl font-bold mb-3 text-cyan-300">Descripción de la IA:</h3>
+                <p className="text-gray-200 whitespace-pre-wrap">{description}</p>
+              </div>
+            )}
+            
+            {appState === AppState.ERROR && (
+               <div className="p-6 bg-red-900/50 border border-red-500 rounded-lg w-full shadow-inner">
+                <h3 className="text-xl font-bold mb-3 text-red-300">Ocurrió un Error</h3>
+                <p className="text-red-200">{error}</p>
               </div>
             )}
 
-            <div className="mt-6 flex flex-wrap justify-center gap-4">
-              <button
-                onClick={handleReset}
-                className="bg-gray-600 text-white font-bold py-3 px-6 rounded-full inline-flex items-center gap-2 hover:bg-gray-700 transition-colors"
-              >
-                <ArrowPathIcon />
-                New Photo
-              </button>
-              {appState === 'result' && interpretation && (
+            <div className="mt-6 flex flex-wrap gap-4 justify-center">
+              {(appState === AppState.CAPTURED || appState === AppState.ERROR) && (
                 <button
-                  onClick={() => speak(interpretation)}
-                  disabled={isSpeaking}
-                  className="bg-cyan-500 text-white font-bold py-3 px-6 rounded-full inline-flex items-center gap-2 hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleDescribe}
+                  className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105 flex items-center"
                 >
-                  {isSpeaking ? <SpeakerWaveIcon /> : <PlayIcon />}
-                  {isSpeaking ? 'Hablando...' : 'Listen Again'}
+                  <DescribeIcon className="w-6 h-6 mr-2" />
+                  Describir Imagen
                 </button>
               )}
+              <button
+                onClick={retake}
+                disabled={appState === AppState.DESCRIBING}
+                className="bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RetryIcon className="w-6 h-6 mr-2" />
+                Tomar Otra Foto
+              </button>
             </div>
           </div>
         );
+
       default:
         return null;
     }
   };
 
   return (
-    <div className="bg-gray-900 min-h-screen text-white flex flex-col items-center justify-center p-4 font-sans">
+    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4 sm:p-6">
+      <header className="w-full max-w-4xl mx-auto mb-8 text-center">
+          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Visión AI</span>
+          </h1>
+          <p className="text-gray-400 mt-2">¿Qué ve tu cámara?</p>
+      </header>
       <main className="w-full flex-grow flex items-center justify-center">
         {renderContent()}
       </main>
-      <canvas ref={canvasRef} className="hidden"></canvas>
-      <footer className="text-center py-4 text-gray-500 text-sm">
-        <p>Powered by Google Gemini</p>
-      </footer>
     </div>
   );
-}
+};
+
+export default App;

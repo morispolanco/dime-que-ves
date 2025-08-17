@@ -1,6 +1,6 @@
 {
-  "name": "Gemini Vision Interpreter",
-  "description": "An application that uses Google Gemini to take photos and interpret them with voice in Spanish.",
+  "name": "Visión AI: Descriptor de Imágenes",
+  "description": "Una aplicación web que utiliza la cámara de tu dispositivo para capturar imágenes y emplea la API de Gemini para generar descripciones detalladas en español de lo que se ve en ellas.",
   "requestFramePermissions": [
     "camera"
   ]
